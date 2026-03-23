@@ -7,117 +7,235 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Interactive Drawing App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
       ),
+      // CRITICAL: Always explicitly set initialRoute and register it in routes
       initialRoute: '/',
       routes: {
-        '/': (context) => const MyHomePage(title: 'Flutter Demo Home Page'),
+        '/': (context) => const InteractiveScreen(),
       },
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+// Model to represent a single drawn line with its properties
+class DrawnLine {
+  final List<Offset> path;
+  final Color color;
+  final double width;
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  DrawnLine({required this.path, required this.color, required this.width});
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class InteractiveScreen extends StatefulWidget {
+  const InteractiveScreen({super.key});
 
-  void _incrementCounter() {
+  @override
+  State<InteractiveScreen> createState() => _InteractiveScreenState();
+}
+
+class _InteractiveScreenState extends State<InteractiveScreen> {
+  // State variables for our drawing board
+  List<DrawnLine> lines = [];
+  DrawnLine? currentLine;
+  Color selectedColor = Colors.black;
+  double strokeWidth = 5.0;
+
+  // Available colors for the user to choose from
+  final List<Color> colors = [
+    Colors.black,
+    Colors.red,
+    Colors.green,
+    Colors.blue,
+    Colors.orange,
+    Colors.purple,
+    Colors.pink,
+  ];
+
+  // Gesture Handlers
+  void onPanStart(DragStartDetails details) {
+    RenderBox? box = context.findRenderObject() as RenderBox?;
+    Offset point = box?.globalToLocal(details.globalPosition) ?? details.globalPosition;
+    
+    // Adjust for the AppBar and Toolbar height to draw exactly under the finger/cursor
+    point = Offset(point.dx, point.dy - Scaffold.of(context).appBarMaxHeight! - 60);
+
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      currentLine = DrawnLine(
+        path: [details.localPosition],
+        color: selectedColor,
+        width: strokeWidth,
+      );
+    });
+  }
+
+  void onPanUpdate(DragUpdateDetails details) {
+    setState(() {
+      currentLine?.path.add(details.localPosition);
+    });
+  }
+
+  void onPanEnd(DragEndDetails details) {
+    setState(() {
+      if (currentLine != null) {
+        lines.add(currentLine!);
+        currentLine = null;
+      }
+    });
+  }
+
+  void clearCanvas() {
+    setState(() {
+      lines.clear();
+      currentLine = null;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
+        title: const Text('Interactive Drawing Board'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: clearCanvas,
+            tooltip: 'Clear Canvas',
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text('$_counter', style: Theme.of(context).textTheme.headlineMedium),
-          ],
-        ),
+      body: Column(
+        children: [
+          // Interactive Toolbar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            color: Colors.grey[100],
+            child: Row(
+              children: [
+                // Color Picker
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: colors.map((color) => GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedColor = color;
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                          width: selectedColor == color ? 36 : 28,
+                          height: selectedColor == color ? 36 : 28,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: selectedColor == color ? Colors.blueAccent : Colors.transparent,
+                              width: 3,
+                            ),
+                            boxShadow: [
+                              if (selectedColor == color)
+                                const BoxShadow(
+                                  color: Colors.black26, 
+                                  blurRadius: 4, 
+                                  spreadRadius: 1,
+                                )
+                            ],
+                          ),
+                        ),
+                      )).toList(),
+                    ),
+                  ),
+                ),
+                // Stroke Width Slider
+                SizedBox(
+                  width: 120,
+                  child: Slider(
+                    value: strokeWidth,
+                    min: 1.0,
+                    max: 20.0,
+                    activeColor: selectedColor,
+                    onChanged: (value) {
+                      setState(() {
+                        strokeWidth = value;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Interactive Canvas Area
+          Expanded(
+            child: GestureDetector(
+              onPanStart: onPanStart,
+              onPanUpdate: onPanUpdate,
+              onPanEnd: onPanEnd,
+              child: Container(
+                color: Colors.white,
+                width: double.infinity,
+                height: double.infinity,
+                // CustomPaint handles the actual rendering of our lines
+                child: CustomPaint(
+                  painter: DrawingPainter(
+                    lines: lines,
+                    currentLine: currentLine,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+}
+
+// CustomPainter to draw the lines on the canvas
+class DrawingPainter extends CustomPainter {
+  final List<DrawnLine> lines;
+  final DrawnLine? currentLine;
+
+  DrawingPainter({required this.lines, this.currentLine});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    Paint paint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    // Draw all previously completed lines
+    for (var line in lines) {
+      paint.color = line.color;
+      paint.strokeWidth = line.width;
+      for (int i = 0; i < line.path.length - 1; i++) {
+        canvas.drawLine(line.path[i], line.path[i + 1], paint);
+      }
+    }
+
+    // Draw the line currently being drawn
+    if (currentLine != null) {
+      paint.color = currentLine!.color;
+      paint.strokeWidth = currentLine!.width;
+      for (int i = 0; i < currentLine!.path.length - 1; i++) {
+        canvas.drawLine(currentLine!.path[i], currentLine!.path[i + 1], paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true; // Always repaint when state changes
   }
 }
